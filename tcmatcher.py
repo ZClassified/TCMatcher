@@ -57,13 +57,23 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
     different_tc = 0
     differing_files = []
 
+    # Transfer statistics
+    total_found = 0
+    no_counterpart = 0
+    already_identical = 0
+    successful_updates = 0
+    failed_updates = 0
+    failed_files = []
+
     for hd_file in hd_path.rglob('*'):
         if hd_file.is_file() and hd_file.suffix.lower() in video_extensions and not hd_file.name.startswith('.'):
+            total_found += 1
             rel_path = hd_file.relative_to(hd_path)
             expected_4k_dir = fourk_path / rel_path.parent
 
             if not expected_4k_dir.exists():
                 print(f"Skipping: Target folder {expected_4k_dir} does not exist.")
+                no_counterpart += 1
                 continue
 
             fourk_file = None
@@ -74,6 +84,7 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
 
             if not fourk_file:
                 print(f"Not found: No Processed counterpart for {hd_file.name}")
+                no_counterpart += 1
                 continue
             
             processed_4k_files.add(fourk_file.resolve())
@@ -99,6 +110,7 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
 
             if fourk_tc == tc:
                 print(f"[{fourk_file.name}] Timecode is already identical ({tc}). Skipping...")
+                already_identical += 1
                 continue
 
             print(f"Copying Timecode [{tc}] to Processed file: {fourk_file.name}...")
@@ -134,12 +146,16 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
                 if temp_size < orig_size * 0.98:
                     print(f"[RED]-> ABORT for {fourk_file.name}: New file is unusually small! (Original: {orig_size}, New: {temp_size})\n")
                     temp_output.unlink(missing_ok=True)
+                    failed_updates += 1
+                    failed_files.append((fourk_file.name, "File too small after writing"))
                     continue
 
                 new_tc = get_timecode(temp_output)
                 if new_tc != tc:
                     print(f"[RED]-> ABORT for {fourk_file.name}: Timecode was not written correctly! (Expected: {tc}, Read: {new_tc})\n")
                     temp_output.unlink(missing_ok=True)
+                    failed_updates += 1
+                    failed_files.append((fourk_file.name, "Timecode verification failed"))
                     continue
 
                 if temp_dir:
@@ -149,17 +165,23 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
                     server_temp.replace(fourk_file)
                     temp_output.unlink(missing_ok=True)
                     print(f"[GREEN]-> Success! (Cached via SSD & verified)\n")
+                    successful_updates += 1
                 else:
                     temp_output.replace(fourk_file)
                     print(f"[GREEN]-> Success! (Size & TC verified)\n")
+                    successful_updates += 1
             except subprocess.CalledProcessError as e:
                 print(f"[RED]-> ERROR (FFmpeg) for {fourk_file.name}: {e.stderr}\n")
                 temp_output.unlink(missing_ok=True)
+                failed_updates += 1
+                failed_files.append((fourk_file.name, f"FFmpeg error: {e.stderr.strip() if e.stderr else 'Unknown'}"))
             except Exception as e:
                 print(f"[RED]-> ERROR (System/Access) for {fourk_file.name}: {str(e)}\n")
                 temp_output.unlink(missing_ok=True)
                 if server_temp:
                     server_temp.unlink(missing_ok=True)
+                failed_updates += 1
+                failed_files.append((fourk_file.name, f"System/Access error: {str(e)}"))
 
     print("\n--- Check for untouched Processed files ---")
     missing_hd = []
@@ -188,6 +210,23 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
         else:
             print(f"[GREEN]Differing timecodes: 0 (Everything perfectly in sync!)")
         print("-------------------\n")
+    else:
+        print("--- TRANSFER REPORT ---")
+        print(f"Total Original files processed: {total_found}")
+        print(f"[GREEN]Successfully updated: {successful_updates}")
+        print(f"Already in sync (skipped): {already_identical}")
+        
+        if failed_updates > 0:
+            print(f"[RED]Failed to update: {failed_updates}")
+            print("\nThe following files could not be updated:")
+            for name, reason in failed_files:
+                print(f"[RED]- {name} (Reason: {reason})")
+        else:
+            print(f"[GREEN]Failed to update: 0")
+            
+        if no_counterpart > 0:
+            print(f"[RED]Missing counterparts: {no_counterpart} original files had no counterpart in the target folder.")
+        print("-----------------------\n")
 
 class PrintLogger:
     def __init__(self, text_widget, is_stderr=False):
