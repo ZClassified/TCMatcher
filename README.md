@@ -8,7 +8,7 @@
 
 **TCMatcher** is a graphical utility tool designed to safely and quickly transfer timecodes from your original video files into your processed/upscaled files when timecode was reset or changed during the upscaling/processing. 
 
-When using AI video upscaling software, the original timecode track is often stripped or reset to `00:00:00:00`. This creates a massive problem for video editors who need to relink the high-resolution files back into their timelines. TCMatcher solves this by comparing the folder structures of your original and upscaled files and injecting the original timecode back into the upscaled files.
+When processing, transcoding, or modifying video files, the original timecode track is often stripped or inadvertently reset to `00:00:00:00`. This creates a massive problem for video editors who need to relink the modified files back into their timelines. TCMatcher solves this by comparing the folder structures of your original and processed files and safely injecting the original timecode back into the modified files.
 
 ### Features
 - **Lossless Stream Copy**: TCMatcher uses `ffmpeg -c copy` to inject the timecode. It does **not** re-encode your video, meaning 100% of the visual quality is preserved and the process is blazingly fast.
@@ -49,7 +49,7 @@ Currently, the tool scans for the following video extensions:
 
 **TCMatcher** ist ein grafisches Tool, das entwickelt wurde, um Timecodes sicher und schnell von deinen Original-Videodateien auf bearbeitete (oder upgescalte) Dateien zu übertragen, wenn der Timecode während der Bearbeitung zurückgesetzt oder verändert wurde.
 
-Wenn man KI-Video-Upscaling-Software verwendet, wird oft der ursprüngliche Timecode-Track entfernt oder auf `00:00:00:00` zurückgesetzt. Dies stellt ein großes Problem für Video-Cutter dar, die die hochauflösenden Dateien in ihren Timelines neu verlinken müssen. TCMatcher löst dies, indem es die Ordnerstrukturen deiner Original- und Ziel-Dateien abgleicht und den ursprünglichen Timecode wieder in die bearbeiteten Dateien injiziert.
+Bei der Verarbeitung, Konvertierung oder Modifikation von Videodateien geht häufig der ursprüngliche Timecode-Track verloren oder wird ungewollt auf `00:00:00:00` zurückgesetzt. Dies stellt ein großes Problem für Video-Cutter dar, die die bearbeiteten Dateien in ihren Timelines neu verlinken müssen. TCMatcher löst dies, indem es die Ordnerstrukturen deiner Original- und Ziel-Dateien abgleicht und den ursprünglichen Timecode sicher wieder in die bearbeiteten Dateien injiziert.
 
 ### Features
 - **Verlustfreier Stream-Copy**: TCMatcher nutzt `ffmpeg -c copy`, um den Timecode zu injizieren. Das Video wird **nicht** neu kodiert, d.h. 100% der visuellen Qualität bleibt erhalten und der Prozess ist blitzschnell.
