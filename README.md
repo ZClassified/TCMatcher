@@ -21,6 +21,13 @@ When processing, transcoding, or modifying video files, the original timecode tr
 - **Python 3.7+**
 - **FFmpeg & FFprobe**: These must be installed on your system and accessible via the system `PATH`. You can download FFmpeg from [the official website](https://ffmpeg.org/download.html).
 
+### Installation
+1. Clone or download this repository.
+2. Install the required Python packages:
+   ```bash
+   pip install customtkinter
+   ```
+
 ### How to Use
 
 1. Run the application:
@@ -61,6 +68,13 @@ Bei der Verarbeitung, Konvertierung oder Modifikation von Videodateien geht häu
 ### Voraussetzungen
 - **Python 3.7+**
 - **FFmpeg & FFprobe**: Diese müssen auf deinem System installiert und über den System-`PATH` erreichbar sein. Du kannst FFmpeg auf [der offiziellen Website](https://ffmpeg.org/download.html) herunterladen.
+
+### Installation
+1. Klone oder lade dieses Repository herunter.
+2. Installiere die benötigten Python-Pakete:
+   ```bash
+   pip install customtkinter
+   ```
 
 ### Nutzung
 1. Starte die Anwendung:
