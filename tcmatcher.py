@@ -11,6 +11,15 @@ import customtkinter as ctk
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 def get_timecode(filepath):
     """Reads the timecode of a video file using ffprobe."""
     command = [
@@ -251,6 +260,11 @@ class TCMatcherApp(ctk.CTk):
         self.title(self.i18n[self.current_lang]["window_title"])
         self.geometry("900x650")
         self.minsize(800, 500)
+        
+        try:
+            self.iconbitmap(resource_path("tcmatcher_logo.ico"))
+        except Exception:
+            pass
         
         self.hd_var = tk.StringVar()
         self.fourk_var = tk.StringVar()
