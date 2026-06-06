@@ -30,7 +30,10 @@ def get_timecode(filepath):
         str(filepath)
     ]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        kwargs = {"capture_output": True, "text": True, "check": True, "stdin": subprocess.DEVNULL}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        result = subprocess.run(command, **kwargs)
         timecodes = result.stdout.strip().split('\n')
         for tc in timecodes:
             if tc and len(tc) >= 8: 
@@ -43,6 +46,9 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
     hd_path = Path(hd_dir)
     fourk_path = Path(fourk_dir)
 
+    print(f"Scanning original files in: {hd_path}")
+    print(f"Matching with processed files in: {fourk_path}\n")
+
     video_extensions = {'.mp4', '.mov', '.mxf', '.avi', '.m4v'}
     processed_4k_files = set()
     
@@ -52,7 +58,7 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
     differing_files = []
 
     for hd_file in hd_path.rglob('*'):
-        if hd_file.is_file() and hd_file.suffix.lower() in video_extensions:
+        if hd_file.is_file() and hd_file.suffix.lower() in video_extensions and not hd_file.name.startswith('.'):
             rel_path = hd_file.relative_to(hd_path)
             expected_4k_dir = fourk_path / rel_path.parent
 
@@ -62,12 +68,12 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
 
             fourk_file = None
             for f in expected_4k_dir.iterdir():
-                if f.is_file() and f.stem == hd_file.stem and f.suffix.lower() in video_extensions:
+                if f.is_file() and f.stem == hd_file.stem and f.suffix.lower() in video_extensions and not f.name.startswith('.'):
                     fourk_file = f
                     break
 
             if not fourk_file:
-                print(f"Not found: No 4K counterpart for {hd_file.name}")
+                print(f"Not found: No Processed counterpart for {hd_file.name}")
                 continue
             
             processed_4k_files.add(fourk_file.resolve())
@@ -84,8 +90,10 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
                 total_checked += 1
                 if fourk_tc == tc:
                     identical_tc += 1
+                    print(f"Checked: {rel_path} -> [GREEN]Match ({tc})")
                 else:
                     different_tc += 1
+                    print(f"[RED]Checked: {rel_path} -> Mismatch! (Original: {tc} | Processed: {fourk_tc})")
                     differing_files.append((fourk_file.relative_to(fourk_path), tc, fourk_tc))
                 continue
 
@@ -93,7 +101,7 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
                 print(f"[{fourk_file.name}] Timecode is already identical ({tc}). Skipping...")
                 continue
 
-            print(f"Copying Timecode [{tc}] to 4K file: {fourk_file.name}...")
+            print(f"Copying Timecode [{tc}] to Processed file: {fourk_file.name}...")
             
             if temp_dir:
                 temp_output = Path(temp_dir) / (fourk_file.stem + '.temp' + fourk_file.suffix)
@@ -115,7 +123,10 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
             
             server_temp = None
             try:
-                subprocess.run(ffmpeg_cmd, capture_output=True, text=True, check=True)
+                kwargs = {"capture_output": True, "text": True, "check": True, "stdin": subprocess.DEVNULL}
+                if sys.platform == "win32":
+                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                subprocess.run(ffmpeg_cmd, **kwargs)
                 
                 orig_size = fourk_file.stat().st_size
                 temp_size = temp_output.stat().st_size
@@ -150,20 +161,20 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
                 if server_temp:
                     server_temp.unlink(missing_ok=True)
 
-    print("\n--- Check for untouched 4K files ---")
+    print("\n--- Check for untouched Processed files ---")
     missing_hd = []
     for f in fourk_path.rglob('*'):
-        if f.is_file() and f.suffix.lower() in video_extensions:
+        if f.is_file() and f.suffix.lower() in video_extensions and not f.name.startswith('.'):
             if f.resolve() not in processed_4k_files:
                 missing_hd.append(f)
     
     if missing_hd:
-        print("[RED]WARNING: No HD counterpart found for the following 4K files:")
+        print("[RED]WARNING: No Original counterpart found for the following Processed files:")
         for f in missing_hd:
             print(f"[RED]❌ {f.relative_to(fourk_path)}")
         print("\n")
     else:
-        print("[GREEN]Perfect: All 4K files had a matching HD counterpart.\n")
+        print("[GREEN]Perfect: All Processed files had a matching Original counterpart.\n")
 
     if check_only:
         print("--- CHECK REPORT ---")
@@ -173,19 +184,24 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False):
             print(f"[RED]Differing timecodes: {different_tc}")
             print("\nThe following files have differing timecodes:")
             for f_rel, expected_tc, actual_tc in differing_files:
-                print(f"[RED]- {f_rel} (HD: {expected_tc} | 4K: {actual_tc})")
+                print(f"[RED]- {f_rel} (Original: {expected_tc} | Processed: {actual_tc})")
         else:
             print(f"[GREEN]Differing timecodes: 0 (Everything perfectly in sync!)")
         print("-------------------\n")
 
 class PrintLogger:
-    def __init__(self, text_widget):
+    def __init__(self, text_widget, is_stderr=False):
         self.text_widget = text_widget
+        self.is_stderr = is_stderr
 
     def write(self, message):
+        if not message:
+            return
         def _insert():
             self.text_widget.configure(state="normal")
-            if "[RED]" in message:
+            if self.is_stderr:
+                self.text_widget.insert(tk.END, message, "error")
+            elif "[RED]" in message:
                 self.text_widget.insert(tk.END, message.replace("[RED]", ""), "error")
             elif "[GREEN]" in message:
                 self.text_widget.insert(tk.END, message.replace("[GREEN]", ""), "success")
@@ -279,7 +295,8 @@ class TCMatcherApp(ctk.CTk):
         
         self.log_text.tag_config("error", foreground="#ff4d4d")
         self.log_text.tag_config("success", foreground="#00cc66")
-        sys.stdout = PrintLogger(self.log_text)
+        sys.stdout = PrintLogger(self.log_text, is_stderr=False)
+        sys.stderr = PrintLogger(self.log_text, is_stderr=True)
 
     def setup_ui(self):
         # Sidebar
