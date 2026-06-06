@@ -3,6 +3,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# my stuff
+tcmatcher_logo.afdesign
+tcmatcher_logo.afdesign~lock~
+tcmatcher_logo.svg
+
 # C extensions
 *.so
 
