@@ -287,11 +287,7 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False, mode="stan
             failed_files.append((fourk_file.name, f"System/Access error: {str(e)}"))
 
     print("\n--- Check for untouched Processed files ---")
-    missing_hd = []
-    for f in fourk_path.rglob('*'):
-        if f.is_file() and f.suffix.lower() in video_extensions and not f.name.startswith('.'):
-            if f.resolve() not in processed_4k_files:
-                missing_hd.append(f)
+    missing_hd = [f for f in fourk_path.rglob('*') if f.is_file() and f.suffix.lower() in video_extensions and not f.name.startswith('.') and f.resolve() not in processed_4k_files]
     
     if missing_hd:
         print("[RED]WARNING: No Original counterpart found for the following Processed files:")
