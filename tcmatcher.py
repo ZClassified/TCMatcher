@@ -10,6 +10,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
+__version__ = "1.3.1"
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
@@ -442,7 +444,7 @@ class TCMatcherApp(ctk.CTk):
         
         self.i18n = {
             "DE": {
-                "window_title": "TCMatcher",
+                "window_title": f"TCMatcher v{__version__}",
                 "tab_transfer": "Timecode Übertragen",
                 "tab_check": "Timecodes Prüfen",
                 "tab_transfer_mm": "Transfer (FPS Mismatch)",
@@ -458,7 +460,7 @@ class TCMatcherApp(ctk.CTk):
                 "log_label": "Log-Ausgabe:",
                 "info_btn": "Info & Anleitung",
                 "info_title": "Information",
-                "info_text": "TCMatcher Anleitung:\n\n1. Original Material Ordner: Wähle den Ordner mit den Originaldateien (mit korrektem Timecode).\n2. Bearbeitetes Material Ordner: Wähle den Ordner mit den veränderten Dateien. Die Dateinamen und Ordnerstruktur müssen exakt mit dem Original-Ordner übereinstimmen!\n3. SSD Cache: Wenn deine Dateien auf einem Netzwerkspeicher liegen, wähle einen lokalen SSD-Ordner. TCMatcher kopiert die Dateien zum Bearbeiten auf die SSD und schiebt sie danach sicher zurück.\n\nPrüfen (Dry-Run):\nSimuliert den Vorgang und zeigt, welche Dateien abweichende Timecodes haben, ohne etwas zu verändern. Im Standard-Modus werden auch abweichende Framerates (FPS Mismatches) in der Statistik ausgewiesen.\n\nFPS Mismatch:\nWenn Original und Bearbeitung unterschiedliche Framerates haben (z.B. 30p zu 25p), werden diese bei der Standard-Übertragung zum Schutz übersprungen. Nutze stattdessen die '(FPS Mismatch)' Tabs. Diese übersetzen den Timecode mathematisch exakt, sodass der In-Point im Schnittprogramm trotz Framerate-Wechsel perfekt erhalten bleibt.\n\n---\nCredits:\nErstellt mit Python & CustomTkinter.\nVideoverarbeitung durch FFmpeg.",
+                "info_text": "TCMatcher Anleitung:\n\n1. Original Material Ordner: Wähle den Ordner mit den Originaldateien (mit korrektem Timecode).\n2. Bearbeitetes Material Ordner: Wähle den Ordner mit den veränderten Dateien. Die Dateinamen und Ordnerstruktur müssen exakt mit dem Original-Ordner übereinstimmen!\n3. SSD Cache: Wenn deine Dateien auf einem Netzwerkspeicher liegen, wähle einen lokalen SSD-Ordner. TCMatcher kopiert die Dateien zum Bearbeiten auf die SSD und schiebt sie danach sicher zurück.\n\nPrüfen (Dry-Run):\nSimuliert den Vorgang und zeigt, welche Dateien abweichende Timecodes haben, ohne etwas zu verändern. Im Standard-Modus werden auch abweichende Framerates (FPS Mismatches) in der Statistik ausgewiesen.\n\nFPS Mismatch:\nWenn Original und Bearbeitung unterschiedliche Framerates haben (z.B. 30p zu 25p), werden diese bei der Standard-Übertragung zum Schutz übersprungen. Nutze stattdessen die '(FPS Mismatch)' Tabs. Diese übersetzen den Timecode mathematisch exakt, sodass der In-Point im Schnittprogramm trotz Framerate-Wechsel perfekt erhalten bleibt. Die Mismatch-Prüfung zeigt außerdem, welche Dateien bereits den korrekt umgerechneten Timecode haben.\n\nWichtig: Die Umrechnung setzt voraus, dass die Laufzeit gleich bleibt (Frames werden dazu- oder weggerechnet, z.B. 24p zu 25p per Frame-Interpolation). Bei einem reinen Speedup (gleiche Frames, schnellere Wiedergabe) ist die Umrechnung nicht passend.\n\n---\nCredits:\nErstellt mit Python & CustomTkinter.\nVideoverarbeitung durch FFmpeg.",
                 "lang_label": "Sprache / Language:",
                 "err_deps_title": "Fehlende Abhängigkeit",
                 "err_deps_msg": "Das Tool '{}' wurde nicht gefunden.\nBitte installiere FFmpeg und füge es dem System-PATH hinzu.",
@@ -471,7 +473,7 @@ class TCMatcherApp(ctk.CTk):
                 "done_trans_msg": "Die Timecode-Übertragung wurde abgeschlossen."
             },
             "EN": {
-                "window_title": "TCMatcher",
+                "window_title": f"TCMatcher v{__version__}",
                 "tab_transfer": "Transfer Timecode",
                 "tab_check": "Check Timecodes",
                 "tab_transfer_mm": "Transfer (FPS Mismatch)",
@@ -487,7 +489,7 @@ class TCMatcherApp(ctk.CTk):
                 "log_label": "Log Output:",
                 "info_btn": "Info & Manual",
                 "info_title": "Information",
-                "info_text": "TCMatcher Manual:\n\n1. Original Material Folder: Select the folder with the original files (containing correct timecode).\n2. Processed Material Folder: Select the folder with the modified files. Filenames and folder structure must match the Original folder exactly!\n3. SSD Cache: If your files are on a network drive, select a local SSD folder. TCMatcher will process the files locally and safely push them back.\n\nCheck (Dry-Run):\nSimulates the process and shows which files have differing timecodes without modifying anything. In Standard mode, files with different framerates (FPS mismatches) are also actively reported in the final statistics.\n\nFPS Mismatch:\nIf Original and Processed files have different framerates (e.g. 30p to 25p), standard transfers will skip them for safety. Instead, use the '(FPS Mismatch)' tabs. These will mathematically recalculate the exact timecode base so that the in-point remains perfectly linked in your NLE.\n\n---\nCredits:\nBuilt with Python & CustomTkinter.\nVideo processing powered by FFmpeg.",
+                "info_text": "TCMatcher Manual:\n\n1. Original Material Folder: Select the folder with the original files (containing correct timecode).\n2. Processed Material Folder: Select the folder with the modified files. Filenames and folder structure must match the Original folder exactly!\n3. SSD Cache: If your files are on a network drive, select a local SSD folder. TCMatcher will process the files locally and safely push them back.\n\nCheck (Dry-Run):\nSimulates the process and shows which files have differing timecodes without modifying anything. In Standard mode, files with different framerates (FPS mismatches) are also actively reported in the final statistics.\n\nFPS Mismatch:\nIf Original and Processed files have different framerates (e.g. 30p to 25p), standard transfers will skip them for safety. Instead, use the '(FPS Mismatch)' tabs. These will mathematically recalculate the exact timecode base so that the in-point remains perfectly linked in your NLE. The mismatch check also shows which files already carry the correctly recalculated timecode.\n\nImportant: The recalculation assumes the duration stays the same (frames are added or removed, e.g. 24p to 25p via frame interpolation). It is not suitable for a pure speed-up (same frames, faster playback).\n\n---\nCredits:\nBuilt with Python & CustomTkinter.\nVideo processing powered by FFmpeg.",
                 "lang_label": "Sprache / Language:",
                 "err_deps_title": "Missing Dependency",
                 "err_deps_msg": "The tool '{}' was not found.\nPlease install FFmpeg and add it to the system PATH.",
@@ -777,7 +779,7 @@ class TCMatcherApp(ctk.CTk):
     def show_info(self):
         info_win = ctk.CTkToplevel(self)
         info_win.title(self.i18n[self.current_lang]["info_title"])
-        info_win.geometry("600x480")
+        info_win.geometry("600x620")
         info_win.attributes("-topmost", True)
         
         label = ctk.CTkLabel(info_win, text=self.i18n[self.current_lang]["info_text"], 
