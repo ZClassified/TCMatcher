@@ -4,6 +4,7 @@ import subprocess
 import threading
 import shutil
 import math
+from fractions import Fraction
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -44,12 +45,13 @@ def get_timecode(filepath):
     return None
 
 def get_framerate(filepath):
-    """Reads the framerate of a video file using ffprobe and rounds it to the nearest integer base."""
+    """Reads the framerate of a video file using ffprobe and rounds it to the nearest integer base.
+    Returns None if the framerate cannot be determined."""
     command = [
         "ffprobe",
         "-v", "error",
         "-select_streams", "v:0",
-        "-show_entries", "stream=r_frame_rate",
+        "-show_entries", "stream=r_frame_rate,avg_frame_rate",
         "-of", "default=noprint_wrappers=1:nokey=1",
         str(filepath)
     ]
@@ -58,42 +60,73 @@ def get_framerate(filepath):
         if sys.platform == "win32":
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         result = subprocess.run(command, **kwargs)
-        fps_str = result.stdout.strip()
-        if fps_str:
-            parts = fps_str.split('/')
-            if len(parts) == 2:
-                fps = float(parts[0]) / float(parts[1])
-            else:
-                fps = float(fps_str)
-            return int(round(fps))
-    except (subprocess.CalledProcessError, ValueError, ZeroDivisionError):
+        # r_frame_rate first, avg_frame_rate as fallback
+        for fps_str in result.stdout.strip().split('\n'):
+            fps_str = fps_str.strip()
+            if not fps_str or fps_str.startswith('0'):
+                continue
+            try:
+                fps = round(Fraction(fps_str))
+            except (ValueError, ZeroDivisionError):
+                continue
+            if fps > 0:
+                return fps
+    except subprocess.CalledProcessError:
         pass
-    return 25 # Fallback
+    return None
 
-def tc_to_seconds(tc_str, fps):
-    """Converts a timecode string to absolute seconds based on given fps."""
+def get_stream_map_args(filepath):
+    """Returns ffmpeg -map arguments for all streams except existing timecode (tmcd) tracks,
+    so an old timecode track does not override the newly written one."""
+    command = [
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "stream=index,codec_tag_string",
+        "-of", "csv=p=0",
+        str(filepath)
+    ]
+    kwargs = {"capture_output": True, "text": True, "check": True, "stdin": subprocess.DEVNULL}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    result = subprocess.run(command, **kwargs)
+    map_args = []
+    for line in result.stdout.strip().split('\n'):
+        parts = line.strip().split(',')
+        if not parts[0].isdigit():
+            continue
+        if len(parts) > 1 and parts[1] == "tmcd":
+            continue
+        map_args += ["-map", f"0:{parts[0]}"]
+    return map_args
+
+def tc_to_frames(tc_str, fps):
+    """Converts a timecode string to an absolute frame count based on given fps. Returns None if invalid."""
     parts = tc_str.replace(';', ':').split(':')
-    if len(parts) < 4:
-        return 0.0
-    h, m, s, f = map(int, parts)
-    return h * 3600 + m * 60 + s + (f / fps)
+    if len(parts) != 4:
+        return None
+    try:
+        h, m, s, f = map(int, parts)
+    except ValueError:
+        return None
+    return ((h * 60 + m) * 60 + s) * fps + f
 
-def seconds_to_tc(seconds, fps):
-    """Converts absolute seconds to a timecode string based on target fps."""
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    f = int(round((seconds - int(seconds)) * fps))
-    if f >= fps:
-        f = 0
-        s += 1
-        if s >= 60:
-            s = 0
-            m += 1
-            if m >= 60:
-                m = 0
-                h += 1
+def frames_to_tc(frames, fps):
+    """Converts an absolute frame count to a timecode string based on given fps."""
+    f = frames % fps
+    total_seconds = frames // fps
+    h = total_seconds // 3600
+    m = (total_seconds % 3600) // 60
+    s = total_seconds % 60
     return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
+
+def convert_tc(tc_str, src_fps, dst_fps):
+    """Recalculates a timecode to a new framerate while keeping the same absolute time.
+    Uses exact integer math; exact half frames are rounded up. Returns None if the TC is invalid."""
+    src_frames = tc_to_frames(tc_str, src_fps)
+    if src_frames is None:
+        return None
+    dst_frames = math.floor(Fraction(src_frames * dst_fps, src_fps) + Fraction(1, 2))
+    return frames_to_tc(dst_frames, dst_fps)
 
 def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False, mode="standard", progress_callback=None, check_stop_callback=None):
     hd_path = Path(hd_dir)
@@ -173,11 +206,19 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False, mode="stan
             if not check_only:
                 print(f"[Fallback] No TC found in {hd_file.name}. Setting 00:00:00:00.")
 
+        if hd_fps is None or fourk_fps is None:
+            print(f"[RED]Skipped: {hd_file.name} (Could not read framerate: Orig {hd_fps} | Target {fourk_fps})")
+            if not check_only:
+                failed_updates += 1
+                failed_files.append((hd_file.name, "Framerate could not be read"))
+            continue
+
         is_mismatch = (hd_fps != fourk_fps)
-        
+
         if mode == "standard" and is_mismatch:
             if check_only:
                 found_fps_mismatch.append((hd_file.name, hd_fps, fourk_fps))
+                continue
             else:
                 print(f"[RED]Skipped: {hd_file.name} (FPS Mismatch: Orig {hd_fps}fps vs Target {fourk_fps}fps)")
                 skipped_mismatch.append((hd_file.name, hd_fps, fourk_fps))
@@ -188,18 +229,20 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False, mode="stan
             skipped_normal += 1
             continue
             
-        if mode == "mismatch" and check_only:
-            total_checked += 1
-            found_fps_mismatch.append((hd_file.name, hd_fps, fourk_fps))
-            print(f"[RED]Found FPS Mismatch: {hd_file.name} (Orig: {hd_fps}fps | Processed: {fourk_fps}fps)")
-            continue
-            
         target_tc = tc
         if mode == "mismatch" and is_mismatch:
-            abs_seconds = tc_to_seconds(tc, hd_fps)
-            target_tc = seconds_to_tc(abs_seconds, fourk_fps)
+            target_tc = convert_tc(tc, hd_fps, fourk_fps)
+            if target_tc is None:
+                print(f"[RED]Skipped: {hd_file.name} (Invalid timecode format: {tc})")
+                if not check_only:
+                    failed_updates += 1
+                    failed_files.append((hd_file.name, f"Invalid timecode format: {tc}"))
+                continue
             print(f"[{hd_file.name}] Recalculated TC: {tc} ({hd_fps}fps) -> {target_tc} ({fourk_fps}fps)")
-        
+
+        if mode == "mismatch" and check_only:
+            found_fps_mismatch.append((hd_file.name, hd_fps, fourk_fps))
+
         if check_only:
             total_checked += 1
             if fourk_tc == target_tc:
@@ -223,21 +266,20 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False, mode="stan
         else:
             temp_output = fourk_file.with_suffix('.temp' + fourk_file.suffix)
         
-        ffmpeg_cmd = [
-            "ffmpeg",
-            "-y",
-            "-i", str(fourk_file),
-            "-map", "0",
-            "-map_metadata", "0",
-            "-map_metadata:s:v", "0:s:v",
-            "-map_metadata:s:a", "0:s:a",
-            "-c", "copy",
-            "-timecode", target_tc,
-            str(temp_output)
-        ]
-        
         server_temp = None
         try:
+            # Stream metadata is copied by default; existing tmcd tracks are excluded so the new TC takes effect
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i", str(fourk_file),
+                *get_stream_map_args(fourk_file),
+                "-map_metadata", "0",
+                "-c", "copy",
+                "-timecode", target_tc,
+                str(temp_output)
+            ]
+
             kwargs = {"capture_output": True, "text": True, "check": True, "stdin": subprocess.DEVNULL}
             if sys.platform == "win32":
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
@@ -328,6 +370,9 @@ def process_files(hd_dir, fourk_dir, temp_dir=None, check_only=False, mode="stan
             print(f"Skipped (Standard files): {skipped_normal}")
             if found_fps_mismatch:
                 print(f"[RED]Found FPS Mismatches: {len(found_fps_mismatch)}")
+                print(f"[GREEN]Already correctly recalculated: {identical_tc}")
+                if different_tc > 0:
+                    print(f"[RED]Need recalculation: {different_tc}")
             else:
                 print(f"[GREEN]Found FPS Mismatches: 0 (All framerates match!)")
             print("---------------------------\n")
